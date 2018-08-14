@@ -1,0 +1,54 @@
+// Any copyright is dedicated to the Public Domain.
+// http://creativecommons.org/publicdomain/zero/1.0/
+
+/*********************************************
+This basic accelerometer example logs a stream
+of x, y, and z data from the accelerometer
+*********************************************/
+
+var tessel = require('tessel');
+var accel = require('accel-mma84').use(tessel.port['A']);
+const fs = require('fs');
+const os = require('os');
+const http = require('http');
+const port = 8888;
+
+const av = require('tessel-av');
+const camera = new av.Camera({
+  width: 320,
+  height: 240
+});
+
+accel.on('ready', function () {
+// Stream accelerometer data
+let fired = false;
+
+  accel.on('data', function (xyz) {
+    const coords = {
+      'x': xyz[0].toFixed(2),
+      'y': xyz[1].toFixed(2),
+      'z': xyz[2].toFixed(2)
+    }
+    if (Math.abs(coords.y) > 0.2 && !fired) {
+      const server = http.createServer((request, response) => {
+        response.writeHead(200, { "Content-Type": "image/jpg"})
+        camera.capture().pipe(response);
+      });
+
+      server.listen(port, () => {
+        console.log(`http://${os.hostname()}.local:${port}`)
+      });
+      fired = true
+      setTimeout(() => {
+        fired = false;
+      }, 5000);
+      process.on("SIGINT", _ => server.close())
+    }
+  });
+});
+
+accel.on('error', function(err){
+  console.log('Error:', err);
+});
+
+// Initialize the accelerometer.
